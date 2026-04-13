@@ -1,0 +1,8 @@
+{
+  "tamplates": [
+    {
+      "nome": "teste 1",
+      "mensagem": "Olá {nome}, tudo bem?\n\npedido:{pedido}"
+    }
+  ]
+}

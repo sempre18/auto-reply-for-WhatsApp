@@ -1,0 +1,68 @@
+[2026-04-10 17:10:25] nome=gui | documento= | telefone=551136473844 | status=erro | erro='NoneType' object has no attribute 'get'
+[2026-04-10 17:10:25] nome=lucas | documento= | telefone=5511910728906 | status=erro | erro='NoneType' object has no attribute 'get'
+[2026-04-10 17:23:24] nome=gui | documento= | telefone=551136473844 | status=enviado | erro=
+[2026-04-10 17:23:42] nome=lucas | documento= | telefone=5511910728906 | status=enviado | erro=
+[2026-04-10 17:30:48] nome=gui | documento= | telefone=551136473844 | status=ignorado | erro=duplicado
+[2026-04-10 17:30:48] nome=lucas | documento= | telefone=5511910728906 | status=ignorado | erro=duplicado
+[2026-04-10 17:30:54] nome=gui | documento= | telefone=551136473844 | status=ignorado | erro=duplicado
+[2026-04-10 17:30:54] nome=lucas | documento= | telefone=5511910728906 | status=ignorado | erro=duplicado
+[2026-04-10 17:40:32] nome=gui | documento= | telefone=551136473844 | status=ignorado | erro=duplicado
+[2026-04-10 17:40:32] nome=lucas | documento= | telefone=5511910728906 | status=ignorado | erro=duplicado
+[2026-04-10 17:40:33] nome=gui | documento= | telefone=5511969214774 | status=erro | erro='NoneType' object has no attribute 'get'
+[2026-04-10 17:40:33] nome=nan | documento= | telefone=551984191724 | status=erro | erro='NoneType' object has no attribute 'get'
+[2026-04-10 17:53:12] nome=gui | documento= | telefone=551136473844 | status=enviado | erro=
+[2026-04-10 17:53:31] nome=lucas | documento= | telefone=5511910728906 | status=enviado | erro=
+[2026-04-10 17:53:50] nome=gui | documento= | telefone=5511969214774 | status=enviado | erro=
+[2026-04-10 17:54:28] nome=joice | documento= | telefone=551984191724 | status=erro | erro=Message: stale element reference: stale element not found in the current frame
+  (Session info: chrome=146.0.7680.178); For documentation on this error, please visit: https://www.selenium.dev/documentation/webdriver/troubleshooting/errors#staleelementreferenceexception
+Stacktrace:
+	chromedriver!GetHandleVerifier [0x7ff7a64829c5+2ed785]
+	chromedriver!GetHandleVerifier [0x7ff7a61aa0d0+14e90]
+	chromedriver!(No symbol) [0x7ff7a5f0db2d]
+	chromedriver!(No symbol) [0x7ff7a5f15ab1]
+	chromedriver!(No symbol) [0x7ff7a5f18bc5]
+	chromedriver!(No symbol) [0x7ff7a5f18c8f]
+	chromedriver!(No symbol) [0x7ff7a5f67b50]
+	chromedriver!(No symbol) [0x7ff7a5f67c47]
+	chromedriver!(No symbol) [0x7ff7a5f5f830]
+	chromedriver!(No symbol) [0x7ff7a5f8ff8a]
+	chromedriver!(No symbol) [0x7ff7a5f5aa06]
+	chromedriver!(No symbol) [0x7ff7a5fb3b9b]
+	chromedriver!(No symbol) [0x7ff7a5f59298]
+	chromedriver!(No symbol) [0x7ff7a5f5a183]
+	chromedriver!GetHandleVerifier [0x7ff7a64ade0d+318bcd]
+	chromedriver!GetHandleVerifier [0x7ff7a64a8588+313348]
+	chromedriver!GetHandleVerifier [0x7ff7a64c9d7a+334b3a]
+	chromedriver!GetHandleVerifier [0x7ff7a61c6785+31545]
+	chromedriver!GetHandleVerifier [0x7ff7a61cfacc+3a88c]
+	chromedriver!GetHandleVerifier [0x7ff7a61b3634+1e3f4]
+	chromedriver!GetHandleVerifier [0x7ff7a61b37e6+1e5a6]
+	chromedriver!GetHandleVerifier [0x7ff7a6197e37+2bf7]
+	KERNEL32!BaseThreadInitThunk [0x7ffd62f4e8d7+17]
+	ntdll!RtlUserThreadStart [0x7ffd64f0c48c+2c]
+
+[2026-04-10 18:01:15] nome=gui | documento= | telefone=551136473844 | status=enviado | erro=
+[2026-04-10 18:01:36] nome=lucas | documento= | telefone=5511910728906 | status=enviado | erro=
+[2026-04-10 18:01:55] nome=gui | documento= | telefone=5511969214774 | status=enviado | erro=
+[2026-04-10 18:02:33] nome=joice | documento= | telefone=551984191724 | status=erro | erro=Message: 
+Stacktrace:
+	chromedriver!GetHandleVerifier [0x7ff7a64829c5+2ed785]
+	chromedriver!GetHandleVerifier [0x7ff7a61aa0d0+14e90]
+	chromedriver!(No symbol) [0x7ff7a5f0db2d]
+	chromedriver!(No symbol) [0x7ff7a5f66b9e]
+	chromedriver!(No symbol) [0x7ff7a5f66eac]
+	chromedriver!(No symbol) [0x7ff7a5fb6fe7]
+	chromedriver!(No symbol) [0x7ff7a5fb3b9b]
+	chromedriver!(No symbol) [0x7ff7a5f59298]
+	chromedriver!(No symbol) [0x7ff7a5f5a183]
+	chromedriver!GetHandleVerifier [0x7ff7a64ade0d+318bcd]
+	chromedriver!GetHandleVerifier [0x7ff7a64a8588+313348]
+	chromedriver!GetHandleVerifier [0x7ff7a64c9d7a+334b3a]
+	chromedriver!GetHandleVerifier [0x7ff7a61c6785+31545]
+	chromedriver!GetHandleVerifier [0x7ff7a61cfacc+3a88c]
+	chromedriver!GetHandleVerifier [0x7ff7a61b3634+1e3f4]
+	chromedriver!GetHandleVerifier [0x7ff7a61b37e6+1e5a6]
+	chromedriver!GetHandleVerifier [0x7ff7a6197e37+2bf7]
+	KERNEL32!BaseThreadInitThunk [0x7ffd62f4e8d7+17]
+	ntdll!RtlUserThreadStart [0x7ffd64f0c48c+2c]
+

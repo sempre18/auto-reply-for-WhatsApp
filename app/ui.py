@@ -4,15 +4,13 @@ import time
 import tkinter as tk
 from tkinter import filedialog, ttk, messagebox
 
+import json
+import os
+
 import pandas as pd
 import customtkinter as ctk
 
-from utils import (
-    validate_columns,
-    clean_dataframe,
-    filter_dataframe,
-    generate_messages,
-)
+from utils import clean_dataframe, generate_messages
 from database import HistoryDB
 from whatsapp import WhatsAppSender
 
@@ -41,7 +39,7 @@ class App(ctk.CTk):
         super().__init__()
 
         self.title("GS Trator | Cobrança via WhatsApp")
-        self.geometry("1450x900")
+        self.geometry("1450x1000")
         self.configure(fg_color=GS_COLORS["black"])
 
         self.db = HistoryDB()
@@ -54,25 +52,34 @@ class App(ctk.CTk):
 
         self._build_variables()
         self._build_layout()
+        self.load_templates()
         self._configure_treeview_style()
 
     def _build_variables(self):
+        self.df_original = pd.DataFrame()
+        self.df_filtered = pd.DataFrame()
+        self.generated_messages = []
+        self.stop_requested = False
+
+        self.templates_file = "tamplate.json"
+        self.templates_data = {"tamplates": []}
+        self.template_names = []
+        self.selected_template_var = tk.StringVar(value="")
+        self.template_name_var = tk.StringVar(value="")
+
         self.excel_path_var = tk.StringVar(value="")
-        self.filter_mode_var = tk.StringVar(value="todos")
-        self.days_var = tk.StringVar(value="3")
-        self.only_valid_phone_var = tk.BooleanVar(value=True)
+        self.phone_column_var = tk.StringVar(value="")
         self.skip_invalid_var = tk.BooleanVar(value=True)
-        self.skip_duplicates_var = tk.BooleanVar(value=True)
         self.interval_var = tk.StringVar(value="7")
         self.driver_path_var = tk.StringVar(value="")
         self.status_var = tk.StringVar(value="Pronto.")
         self.total_var = tk.StringVar(value="0 mensagens geradas")
 
         self.template_default = (
-            "Olá {nome}, tudo bem?\n\n"
-            "Consta em nosso sistema o documento {documento}, "
-            "com vencimento em {vencimento}, no valor de {valor}.\n\n"
+            "Olá {Historico}, tudo bem?\n\n"
+            "Consta em nosso sistema o documento {Documento} no valor de {Vl.Documento}.\n\n"
             "Caso já tenha realizado o pagamento, por favor desconsidere esta mensagem.\n\n"
+            "Contato enviado para {telefone}.\n\n"
             "Obrigado."
         )
 
@@ -108,6 +115,127 @@ class App(ctk.CTk):
             "Treeview.Heading",
             background=[("active", GS_COLORS["orange_hover"])]
         )
+
+    def load_templates(self):
+        try:
+            if not os.path.exists(self.templates_file):
+                with open(self.templates_file, "w", encoding="utf-8") as f:
+                    json.dump({"tamplates": []}, f, ensure_ascii=False, indent=2)
+
+            with open(self.templates_file, "r", encoding="utf-8") as f:
+                self.templates_data = json.load(f)
+
+            if "tamplates" not in self.templates_data or not isinstance(self.templates_data["tamplates"], list):
+                self.templates_data = {"tamplates": []}
+
+        except Exception as e:
+            self.templates_data = {"tamplates": []}
+            self.log(f"[ERRO] Falha ao carregar templates: {e}")
+
+        self.refresh_template_menu()
+    
+    def get_template_text(self):
+        return self.template_box.get("1.0", "end").strip()
+
+    def new_template(self):
+        self.selected_template_var.set("")
+        self.template_name_var.set("")
+        self.template_box.delete("1.0", "end")
+        self.template_box.insert("1.0", self.template_default)
+        self.log("[INFO] Novo template iniciado.")
+
+    def delete_selected_template(self):
+        nome = self.selected_template_var.get().strip()
+
+        if not nome:
+            messagebox.showwarning("Aviso", "Selecione um template para excluir.")
+            return
+
+        confirm = messagebox.askyesno("Confirmar", f"Deseja excluir o template '{nome}'?")
+        if not confirm:
+            return
+
+        try:
+            self.templates_data["tamplates"] = [
+                item for item in self.templates_data.get("tamplates", [])
+                if item.get("nome") != nome
+            ]
+
+            self.save_templates_file()
+            self.refresh_template_menu()
+
+            self.template_name_var.set("")
+            self.template_box.delete("1.0", "end")
+
+            self.log(f"[OK] Template excluído: {nome}")
+            messagebox.showinfo("Sucesso", f"Template '{nome}' excluído com sucesso.")
+        except Exception as e:
+            messagebox.showerror("Erro", f"Falha ao excluir template:\n{e}")
+            self.log(f"[ERRO] Falha ao excluir template: {e}")
+            
+    def save_current_template(self):
+        nome = self.template_name_var.get().strip()
+        mensagem = self.get_template_text()
+
+        if not nome:
+            messagebox.showwarning("Aviso", "Digite um nome para o template.")
+            return
+
+        if not mensagem:
+            messagebox.showwarning("Aviso", "O template está vazio.")
+            return
+
+        found = False
+        for item in self.templates_data.get("tamplates", []):
+            if item.get("nome") == nome:
+                item["mensagem"] = mensagem
+                found = True
+                break
+
+        if not found:
+            self.templates_data["tamplates"].append({
+                "nome": nome,
+                "mensagem": mensagem
+            })
+
+        try:
+            self.save_templates_file()
+            self.refresh_template_menu()
+            self.selected_template_var.set(nome)
+            self.log(f"[OK] Template salvo: {nome}")
+            messagebox.showinfo("Sucesso", f"Template '{nome}' salvo com sucesso.")
+        except Exception as e:
+            messagebox.showerror("Erro", f"Falha ao salvar template:\n{e}")
+            self.log(f"[ERRO] Falha ao salvar template: {e}")
+    
+    def apply_selected_template(self, selected_name=None):
+        name = selected_name or self.selected_template_var.get().strip()
+        if not name:
+            return
+
+        for item in self.templates_data.get("tamplates", []):
+            if item.get("nome") == name:
+                self.template_box.delete("1.0", "end")
+                self.template_box.insert("1.0", item.get("mensagem", ""))
+                self.template_name_var.set(name)
+                self.log(f"[OK] Template selecionado: {name}")
+                return
+
+    def save_templates_file(self):
+        with open(self.templates_file, "w", encoding="utf-8") as f:
+            json.dump(self.templates_data, f, ensure_ascii=False, indent=2)
+        
+    def refresh_template_menu(self):
+        self.template_names = [item.get("nome", "") for item in self.templates_data.get("tamplates", []) if item.get("nome")]
+
+        values = self.template_names if self.template_names else [""]
+
+        if hasattr(self, "template_select_menu"):
+            self.template_select_menu.configure(values=values)
+
+        current = self.selected_template_var.get().strip()
+        if current not in self.template_names:
+            self.selected_template_var.set(values[0] if values else "")
 
     def _make_button(self, parent, text, command, color=None, hover=None):
         return ctk.CTkButton(
@@ -156,32 +284,20 @@ class App(ctk.CTk):
 
         self._make_button(left, "Importar planilha", self.import_excel).pack(padx=14, pady=6, fill="x")
 
-        ctk.CTkLabel(left, text="Filtro", text_color=GS_COLORS["light"]).pack(anchor="w", padx=14, pady=(10, 0))
-        ctk.CTkOptionMenu(
+        ctk.CTkLabel(left, text="Coluna do número", text_color=GS_COLORS["light"]).pack(anchor="w", padx=14, pady=(10, 0))
+
+        self.phone_column_menu = ctk.CTkOptionMenu(
             left,
-            variable=self.filter_mode_var,
-            values=["todos", "vencidos", "a_vencer"],
+            variable=self.phone_column_var,
+            values=[""],
             fg_color=GS_COLORS["orange"],
             button_color=GS_COLORS["orange"],
             button_hover_color=GS_COLORS["orange_hover"],
             text_color=GS_COLORS["white"],
             dropdown_fg_color=GS_COLORS["graphite"],
             dropdown_text_color=GS_COLORS["white"]
-        ).pack(padx=14, pady=5)
-
-        ctk.CTkLabel(left, text="Dias para 'a vencer'", text_color=GS_COLORS["light"]).pack(anchor="w", padx=14)
-        ctk.CTkEntry(
-            left,
-            textvariable=self.days_var,
-            width=110,
-            fg_color=GS_COLORS["gray"],
-            border_color=GS_COLORS["orange"],
-            text_color=GS_COLORS["white"]
-        ).pack(anchor="w", padx=14, pady=5)
-
-        ctk.CTkCheckBox(left, text="Somente telefone válido", variable=self.only_valid_phone_var).pack(anchor="w", padx=14, pady=3)
-        ctk.CTkCheckBox(left, text="Pular números inválidos", variable=self.skip_invalid_var).pack(anchor="w", padx=14, pady=3)
-        ctk.CTkCheckBox(left, text="Não reenviar duplicados", variable=self.skip_duplicates_var).pack(anchor="w", padx=14, pady=3)
+        )
+        self.phone_column_menu.pack(padx=14, pady=5, fill="x")
 
         ctk.CTkLabel(left, text="Intervalo entre envios (segundos)", text_color=GS_COLORS["light"]).pack(anchor="w", padx=14, pady=(10, 0))
         ctk.CTkEntry(
@@ -193,7 +309,7 @@ class App(ctk.CTk):
             text_color=GS_COLORS["white"]
         ).pack(anchor="w", padx=14, pady=5)
 
-        ctk.CTkLabel(left, text="Caminho do ChromeDriver", text_color=GS_COLORS["light"]).pack(anchor="w", padx=14, pady=(10, 0))
+        ctk.CTkLabel(left, text="Caminho do ChromeDriver (opcional)", text_color=GS_COLORS["light"]).pack(anchor="w", padx=14, pady=(10, 0))
         ctk.CTkEntry(
             left,
             textvariable=self.driver_path_var,
@@ -238,35 +354,101 @@ class App(ctk.CTk):
         )
         right.grid(row=0, column=1, sticky="nsew", padx=(0, 12), pady=12)
         right.grid_columnconfigure(0, weight=1)
-        right.grid_rowconfigure(1, weight=1)
-        right.grid_rowconfigure(3, weight=1)
-        right.grid_rowconfigure(5, weight=1)
-        right.grid_rowconfigure(7, weight=1)
+
+        for i in range(13):
+            right.grid_rowconfigure(i, weight=0)
+
+        right.grid_rowconfigure(5, weight=1)   # template_box
+        right.grid_rowconfigure(8, weight=1)   # preview
+        right.grid_rowconfigure(10, weight=1)  # tabela
+        right.grid_rowconfigure(12, weight=1)  # log
+
+        ctk.CTkLabel(
+            right,
+            text="Templates salvos",
+            text_color=GS_COLORS["light"]
+        ).grid(row=0, column=0, sticky="w", padx=14, pady=(10, 0))
+
+        self.template_select_menu = ctk.CTkOptionMenu(
+            right,
+            variable=self.selected_template_var,
+            values=[""],
+            command=self.apply_selected_template,
+            fg_color=GS_COLORS["orange"],
+            button_color=GS_COLORS["orange"],
+            button_hover_color=GS_COLORS["orange_hover"],
+            text_color=GS_COLORS["white"],
+            dropdown_fg_color=GS_COLORS["graphite"],
+            dropdown_text_color=GS_COLORS["white"]
+        )
+        self.template_select_menu.grid(row=1, column=0, sticky="ew", padx=14, pady=5)
+
+        ctk.CTkLabel(
+            right,
+            text="Nome do template",
+            text_color=GS_COLORS["light"]
+        ).grid(row=2, column=0, sticky="w", padx=14, pady=(8, 0))
+
+        self.template_name_entry = ctk.CTkEntry(
+            right,
+            textvariable=self.template_name_var,
+            fg_color=GS_COLORS["gray"],
+            border_color=GS_COLORS["orange"],
+            text_color=GS_COLORS["white"]
+        )
+        self.template_name_entry.grid(row=3, column=0, sticky="ew", padx=14, pady=5)
 
         ctk.CTkLabel(
             right,
             text="Template da mensagem",
             text_color=GS_COLORS["white"],
             font=ctk.CTkFont(size=18, weight="bold")
-        ).grid(row=0, column=0, sticky="w", padx=12, pady=(12, 6))
+        ).grid(row=4, column=0, sticky="w", padx=12, pady=(8, 6))
 
         self.template_box = ctk.CTkTextbox(
             right,
-            height=140,
+            height=180,
             fg_color=GS_COLORS["gray"],
             border_color=GS_COLORS["orange"],
             border_width=1,
             text_color=GS_COLORS["white"]
         )
-        self.template_box.grid(row=1, column=0, sticky="nsew", padx=12, pady=(0, 10))
+        self.template_box.grid(row=5, column=0, sticky="nsew", padx=12, pady=(0, 8))
         self.template_box.insert("1.0", self.template_default)
+
+        template_buttons = ctk.CTkFrame(right, fg_color="transparent")
+        template_buttons.grid(row=6, column=0, sticky="w", padx=14, pady=(0, 8))
+
+        ctk.CTkButton(
+            template_buttons,
+            text="Novo",
+            command=self.new_template,
+            fg_color=GS_COLORS["graphite"],
+            hover_color=GS_COLORS["gray"]
+        ).pack(side="left", padx=4)
+
+        ctk.CTkButton(
+            template_buttons,
+            text="Salvar",
+            command=self.save_current_template,
+            fg_color=GS_COLORS["orange"],
+            hover_color=GS_COLORS["orange_hover"]
+        ).pack(side="left", padx=4)
+
+        ctk.CTkButton(
+            template_buttons,
+            text="Excluir",
+            command=self.delete_selected_template,
+            fg_color="#8B0000",
+            hover_color="#A40000"
+        ).pack(side="left", padx=4)
 
         ctk.CTkLabel(
             right,
             text="Preview / mensagens geradas",
             text_color=GS_COLORS["white"],
             font=ctk.CTkFont(size=18, weight="bold")
-        ).grid(row=2, column=0, sticky="w", padx=12, pady=(4, 6))
+        ).grid(row=7, column=0, sticky="w", padx=12, pady=(4, 6))
 
         self.preview_box = ctk.CTkTextbox(
             right,
@@ -276,39 +458,26 @@ class App(ctk.CTk):
             border_width=1,
             text_color=GS_COLORS["white"]
         )
-        self.preview_box.grid(row=3, column=0, sticky="nsew", padx=12, pady=(0, 10))
+        self.preview_box.grid(row=8, column=0, sticky="nsew", padx=12, pady=(0, 10))
 
         ctk.CTkLabel(
             right,
             text="Dados da planilha",
             text_color=GS_COLORS["white"],
             font=ctk.CTkFont(size=18, weight="bold")
-        ).grid(row=4, column=0, sticky="w", padx=12, pady=(4, 6))
+        ).grid(row=9, column=0, sticky="w", padx=12, pady=(4, 6))
 
         table_frame = ctk.CTkFrame(right, fg_color=GS_COLORS["gray"], corner_radius=10)
-        table_frame.grid(row=5, column=0, sticky="nsew", padx=12, pady=(0, 10))
+        table_frame.grid(row=10, column=0, sticky="nsew", padx=12, pady=(0, 10))
         table_frame.grid_rowconfigure(0, weight=1)
         table_frame.grid_columnconfigure(0, weight=1)
 
         self.tree = ttk.Treeview(
             table_frame,
-            columns=("nome", "documento", "vencimento", "valor", "telefone", "valido"),
+            columns=(),
             show="headings",
             height=12
         )
-        self.tree.heading("nome", text="Cliente")
-        self.tree.heading("documento", text="Documento")
-        self.tree.heading("vencimento", text="Vencimento")
-        self.tree.heading("valor", text="Valor")
-        self.tree.heading("telefone", text="Telefone")
-        self.tree.heading("valido", text="Válido")
-
-        self.tree.column("nome", width=220)
-        self.tree.column("documento", width=120)
-        self.tree.column("vencimento", width=110)
-        self.tree.column("valor", width=110)
-        self.tree.column("telefone", width=150)
-        self.tree.column("valido", width=70)
 
         y_scroll = ttk.Scrollbar(table_frame, orient="vertical", command=self.tree.yview)
         self.tree.configure(yscrollcommand=y_scroll.set)
@@ -321,7 +490,7 @@ class App(ctk.CTk):
             text="Log",
             text_color=GS_COLORS["white"],
             font=ctk.CTkFont(size=18, weight="bold")
-        ).grid(row=6, column=0, sticky="w", padx=12, pady=(4, 6))
+        ).grid(row=11, column=0, sticky="w", padx=12, pady=(4, 6))
 
         self.log_box = ctk.CTkTextbox(
             right,
@@ -331,12 +500,13 @@ class App(ctk.CTk):
             border_width=1,
             text_color=GS_COLORS["white"]
         )
-        self.log_box.grid(row=7, column=0, sticky="nsew", padx=12, pady=(0, 12))
-
+        self.log_box.grid(row=12, column=0, sticky="nsew", padx=12, pady=(0, 12))
+    
     def log(self, text: str):
-        self.log_box.insert("end", text + "\n")
-        self.log_box.see("end")
-        self.update_idletasks()
+        if hasattr(self, "log_box"):
+            self.log_box.insert("end", text + "\n")
+            self.log_box.see("end")
+            self.update_idletasks()
 
     def select_chromedriver(self):
         path = filedialog.askopenfilename(
@@ -359,22 +529,37 @@ class App(ctk.CTk):
             self.excel_path_var.set(path)
             df = pd.read_excel(path)
 
-            missing = validate_columns(df)
-            if missing:
-                messagebox.showerror(
-                    "Colunas faltando",
-                    "As seguintes colunas obrigatórias não foram encontradas:\n\n" + "\n".join(missing)
-                )
+            if df.empty:
+                messagebox.showwarning("Aviso", "A planilha está vazia.")
                 return
 
-            df = clean_dataframe(df)
+            self.df_original = df.copy()
+            self.df_filtered = pd.DataFrame()
+            self.generated_messages = []
 
-            self.df_original = df
-            self.df_filtered = df.copy()
-            self.refresh_table(self.df_filtered)
+            columns = [str(col) for col in df.columns]
+            self.phone_column_menu.configure(values=columns)
+
+            # tenta selecionar automaticamente uma coluna provável
+            preferred = ""
+            for candidate in columns:
+                candidate_lower = candidate.strip().lower()
+                if candidate_lower in ["telefone", "telefone cliente", "celular", "whatsapp", "numero", "número"]:
+                    preferred = candidate
+                    break
+
+            if not preferred and columns:
+                preferred = columns[0]
+
+            self.phone_column_var.set(preferred)
+
+            self.refresh_table(self.df_original)
 
             self.status_var.set(f"Planilha carregada com {len(df)} registros.")
             self.log(f"[OK] Planilha importada: {path}")
+            self.log(f"[INFO] Colunas encontradas: {', '.join(columns)}")
+            self.log(f"[INFO] Coluna de número selecionada: {preferred}")
+
         except Exception as e:
             messagebox.showerror("Erro", f"Falha ao importar planilha:\n{e}")
             self.log(f"[ERRO] Importação falhou: {e}")
@@ -383,63 +568,94 @@ class App(ctk.CTk):
         for item in self.tree.get_children():
             self.tree.delete(item)
 
-        preview_df = df.head(300)
+        if df.empty:
+            self.tree["columns"] = ()
+            return
+
+        preview_df = df.head(300).copy()
+        columns = [str(col) for col in preview_df.columns]
+
+        self.tree["columns"] = columns
+        self.tree["show"] = "headings"
+
+        for col in columns:
+            self.tree.heading(col, text=col)
+            self.tree.column(col, width=140, anchor="w")
 
         for _, row in preview_df.iterrows():
-            self.tree.insert("", "end", values=(
-                row.get("nome", ""),
-                row.get("documento", ""),
-                row.get("vencimento_fmt", ""),
-                row.get("valor_fmt", ""),
-                row.get("telefone", ""),
-                "Sim" if row.get("telefone_valido", False) else "Não"
-            ))
-
-    def get_template_text(self):
-        return self.template_box.get("1.0", "end").strip()
+            values = [row.get(col, "") for col in columns]
+            self.tree.insert("", "end", values=values)
 
     def generate_messages_action(self):
         if self.df_original.empty:
             messagebox.showwarning("Aviso", "Importe uma planilha primeiro.")
             return
 
-        try:
-            mode = self.filter_mode_var.get()
-            days = int(self.days_var.get() or "3")
-            only_valid_phone = self.only_valid_phone_var.get()
+        phone_column = self.phone_column_var.get().strip()
+        if not phone_column:
+            messagebox.showwarning("Aviso", "Selecione a coluna do número.")
+            return
 
-            self.df_filtered = filter_dataframe(
-                self.df_original,
-                mode=mode,
-                dias=days,
-                only_valid_phone=only_valid_phone
-            )
+        template = self.get_template_text().strip()
+        if not template:
+            messagebox.showwarning("Aviso", "Digite um template antes de gerar as mensagens.")
+            return
+
+        try:
+            self.status_var.set("Gerando mensagens...")
+            self.total_var.set("0 mensagens geradas")
+            self.preview_box.delete("1.0", "end")
+            self.generated_messages = []
+            self.df_filtered = pd.DataFrame()
+
+            self.log("[INFO] Iniciando geração de mensagens...")
+
+            self.df_filtered = clean_dataframe(self.df_original, phone_column)
+
+            if self.df_filtered.empty:
+                self.status_var.set("Nenhum registro disponível.")
+                self.preview_box.insert("1.0", "Nenhum registro disponível após o tratamento da planilha.")
+                self.log("[INFO] Nenhum registro disponível após tratamento da planilha.")
+                return
 
             self.refresh_table(self.df_filtered)
 
-            template = self.get_template_text()
-            self.generated_messages = generate_messages(self.df_filtered, template)
+            raw_messages = generate_messages(self.df_filtered, template)
+            self.generated_messages = [item for item in raw_messages if isinstance(item, dict)]
 
-            self.preview_box.delete("1.0", "end")
+            if not self.generated_messages:
+                self.preview_box.insert("1.0", "Nenhuma mensagem gerada.")
+                self.status_var.set("Nenhuma mensagem gerada.")
+                self.log("[INFO] Nenhuma mensagem válida foi gerada.")
+                return
+
             preview_texts = []
             for i, item in enumerate(self.generated_messages[:10], start=1):
+                telefone = item.get("telefone", "")
+                row_data = item.get("row_data") or {}
+                nome_preview = row_data.get("Historico", "") or row_data.get("nome", "") or row_data.get("Nome", "")
+                mensagem = item.get("mensagem", "")
+
                 preview_texts.append(
-                    f"{i}) {item['telefone']} - {item['nome']}\n{item['mensagem']}\n{'-' * 70}"
+                    f"{i}) {telefone} - {nome_preview}\n{mensagem}\n{'-' * 70}"
                 )
 
-            self.preview_box.insert("1.0", "\n".join(preview_texts) if preview_texts else "Nenhuma mensagem gerada.")
+            self.preview_box.insert("1.0", "\n".join(preview_texts))
             self.total_var.set(f"{len(self.generated_messages)} mensagens geradas")
             self.status_var.set("Mensagens geradas com sucesso.")
             self.log(f"[OK] {len(self.generated_messages)} mensagens geradas.")
-        except Exception as e:
-            messagebox.showerror("Erro", f"Falha ao gerar mensagens:\n{e}")
-            self.log(f"[ERRO] Geração falhou: {e}")
+            self.log(f"[INFO] Coluna de número usada: {phone_column}")
 
+        except Exception as e:
+            self.status_var.set("Erro ao gerar mensagens.")
+            self.preview_box.delete("1.0", "end")
+            self.preview_box.insert("1.0", f"Erro ao gerar mensagens:\n{e}")
+            self.log(f"[ERRO] Geração falhou: {e}")
+            self.log(traceback.format_exc())
+            messagebox.showerror("Erro", f"Falha ao gerar mensagens:\n{e}")
+            
     def start_whatsapp(self):
         driver_path = self.driver_path_var.get().strip()
-        if not driver_path:
-            messagebox.showwarning("Aviso", "Selecione o ChromeDriver.")
-            return
 
         def worker():
             try:
@@ -458,7 +674,8 @@ class App(ctk.CTk):
             except Exception as e:
                 self.status_var.set("Erro ao iniciar WhatsApp.")
                 self.log(f"[ERRO] WhatsApp: {e}")
-                messagebox.showerror("Erro", f"Falha ao iniciar WhatsApp:\n{e}")
+                self.log(traceback.format_exc())
+                self.after(0, lambda: messagebox.showerror("Erro", f"Falha ao iniciar WhatsApp:\n{e}"))
 
         threading.Thread(target=worker, daemon=True).start()
 
@@ -494,7 +711,6 @@ class App(ctk.CTk):
             try:
                 interval = int(self.interval_var.get() or "7")
                 skip_invalid = self.skip_invalid_var.get()
-                skip_duplicates = self.skip_duplicates_var.get()
 
                 self.progress.set(0)
                 self.status_var.set("Enviando mensagens...")
@@ -505,11 +721,17 @@ class App(ctk.CTk):
                         self.log("[PARADO] Envio encerrado manualmente.")
                         break
 
-                    nome = item["nome"]
-                    documento = item["documento"]
-                    telefone = item["telefone"]
-                    mensagem = item["mensagem"]
-                    telefone_valido = item["telefone_valido"]
+                    if not isinstance(item, dict):
+                        self.log(f"[ERRO] Item inválido na posição {idx}: {item}")
+                        self.progress.set(idx / total)
+                        continue
+
+                    nome = item.get("nome", "")
+                    documento = item.get("documento", "")
+                    telefone = item.get("telefone", "")
+                    mensagem = item.get("mensagem", "")
+                    telefone_valido = item.get("telefone_valido", False)
+                    row_data = item.get("row_data") or {}
 
                     try:
                         if skip_invalid and not telefone_valido:
@@ -518,9 +740,15 @@ class App(ctk.CTk):
                             self.progress.set(idx / total)
                             continue
 
-                        if skip_duplicates and self.db.was_already_sent(telefone, documento):
-                            self.db.save_send(nome, documento, telefone, mensagem, "ignorado", "duplicado")
-                            self.log(f"[IGNORADO] {telefone} - já enviado anteriormente")
+                        if not telefone:
+                            self.db.save_send(nome, documento, telefone, mensagem, "ignorado", "telefone vazio")
+                            self.log(f"[IGNORADO] Registro sem telefone: {row_data}")
+                            self.progress.set(idx / total)
+                            continue
+
+                        if not mensagem:
+                            self.db.save_send(nome, documento, telefone, mensagem, "ignorado", "mensagem vazia")
+                            self.log(f"[IGNORADO] {telefone} - mensagem vazia")
                             self.progress.set(idx / total)
                             continue
 
@@ -532,7 +760,6 @@ class App(ctk.CTk):
                         self.progress.set(idx / total)
                         self.status_var.set(f"Enviando... {idx}/{total}")
 
-                        # espera entre envios, mas respeitando parada manual
                         if idx < total:
                             for _ in range(interval):
                                 if self.stop_requested:
@@ -547,6 +774,8 @@ class App(ctk.CTk):
                     except Exception as inner_error:
                         self.db.save_send(nome, documento, telefone, mensagem, "erro", str(inner_error))
                         self.log(f"[ERRO] {telefone} - {inner_error}")
+                        self.log(f"[DEBUG] item={item}")
+                        self.log(traceback.format_exc())
 
                     self.progress.set(idx / total)
 

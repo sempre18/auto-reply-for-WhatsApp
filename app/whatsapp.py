@@ -13,43 +13,59 @@ from selenium.webdriver.support import expected_conditions as EC
 
 
 class WhatsAppSender:
-    def __init__(self, chromedriver_path: str):
-        self.chromedriver_path = chromedriver_path
+    def __init__(self, chromedriver_path: str = ""):
+        self.chromedriver_path = chromedriver_path.strip() if chromedriver_path else ""
         self.driver = None
         self.wait = None
+        self.profile_dir = self._get_profile_dir()
 
     def _get_profile_dir(self) -> str:
-        """
-        Cria um diretório fixo e seguro para o perfil do Chrome no Windows.
-        """
         base_dir = os.getenv("LOCALAPPDATA") or str(Path.home())
         profile_dir = os.path.join(base_dir, "WhatsAppCobranca", "chrome_profile")
-
         os.makedirs(profile_dir, exist_ok=True)
         return profile_dir
 
     def start(self):
-        profile_dir = self._get_profile_dir()
-
         options = Options()
+        options.add_argument(f"--user-data-dir={self.profile_dir}")
         options.add_argument("--start-maximized")
-        options.add_argument(f"--user-data-dir={profile_dir}")
-        options.add_argument("--lang=pt-BR")
-        options.add_argument("--disable-notifications")
+        options.add_argument("--disable-blink-features=AutomationControlled")
 
-        service = Service(self.chromedriver_path)
-        self.driver = webdriver.Chrome(service=service, options=options)
-        self.wait = WebDriverWait(self.driver, 30)
+        try:
+            if self.chromedriver_path:
+                print("[INFO] Usando ChromeDriver manual...")
+                service = Service(self.chromedriver_path)
+                self.driver = webdriver.Chrome(service=service, options=options)
+            else:
+                print("[INFO] Usando Selenium Manager (automático)...")
+                self.driver = webdriver.Chrome(options=options)
+
+            self.wait = WebDriverWait(self.driver, 30)
+
+        except Exception as e:
+            print("[ERRO] Falha ao iniciar Chrome:", e)
+            raise
 
     def open_whatsapp(self):
+        if not self.driver:
+            raise Exception("Chrome não foi iniciado. Execute start() antes.")
         self.driver.get("https://web.whatsapp.com/")
 
     def wait_for_login(self):
-        self.wait.until(
-            EC.presence_of_element_located((By.ID, "side"))
-        )
+        if not self.wait:
+            raise Exception("WebDriverWait não foi iniciado.")
+        self.wait.until(EC.presence_of_element_located((By.ID, "side")))
 
     def send_message(self, phone: str, message: str):
+        if not self.driver or not self.wait:
+            raise Exception("WhatsApp não foi iniciado corretamente.")
+
+        if not phone:
+            raise Exception("Telefone vazio.")
+
+        if not message:
+            raise Exception("Mensagem vazia.")
+
         encoded = urllib.parse.quote(message)
         url = f"https://web.whatsapp.com/send?phone={phone}&text={encoded}"
         self.driver.get(url)
