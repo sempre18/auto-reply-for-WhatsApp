@@ -672,10 +672,14 @@ class App(ctk.CTk):
                 self.status_var.set("WhatsApp conectado.")
                 self.log("[OK] WhatsApp conectado com sucesso.")
             except Exception as e:
+                error_msg = str(e)
+                error_trace = traceback.format_exc()
+
                 self.status_var.set("Erro ao iniciar WhatsApp.")
-                self.log(f"[ERRO] WhatsApp: {e}")
-                self.log(traceback.format_exc())
-                self.after(0, lambda: messagebox.showerror("Erro", f"Falha ao iniciar WhatsApp:\n{e}"))
+                self.log(f"[ERRO] WhatsApp: {error_msg}")
+                self.log(error_trace)
+
+                self.after(0, lambda msg=error_msg: messagebox.showerror("Erro", f"Falha ao iniciar WhatsApp:\n{msg}"))
 
         threading.Thread(target=worker, daemon=True).start()
 
@@ -721,7 +725,7 @@ class App(ctk.CTk):
                         self.log("[PARADO] Envio encerrado manualmente.")
                         break
 
-                    if not isinstance(item, dict):
+                    if item is None or not isinstance(item, dict):
                         self.log(f"[ERRO] Item inválido na posição {idx}: {item}")
                         self.progress.set(idx / total)
                         continue
@@ -752,30 +756,45 @@ class App(ctk.CTk):
                             self.progress.set(idx / total)
                             continue
 
+                        self.status_var.set(f"Carregando conversa... {idx}/{total}")
+                        self.log(f"[INFO] Abrindo conversa de {telefone}...")
+
+                        # só retorna True quando realmente enviou
                         self.sender.send_message(telefone, mensagem)
+
                         self.db.save_send(nome, documento, telefone, mensagem, "enviado", "")
                         sent += 1
                         self.log(f"[ENVIADO] {telefone} - {nome}")
 
                         self.progress.set(idx / total)
-                        self.status_var.set(f"Enviando... {idx}/{total}")
+                        self.status_var.set(f"Enviado {idx}/{total}. Aguardando intervalo...")
 
+                        # intervalo começa somente após envio confirmado
                         if idx < total:
-                            for _ in range(interval):
+                            for sec in range(interval, 0, -1):
                                 if self.stop_requested:
                                     self.status_var.set("Envio interrompido pelo usuário.")
                                     self.log("[PARADO] Envio encerrado durante intervalo.")
                                     break
+
+                                self.status_var.set(
+                                    f"Enviado {idx}/{total}. Próximo em {sec}s..."
+                                )
                                 time.sleep(1)
 
                             if self.stop_requested:
                                 break
 
                     except Exception as inner_error:
-                        self.db.save_send(nome, documento, telefone, mensagem, "erro", str(inner_error))
-                        self.log(f"[ERRO] {telefone} - {inner_error}")
-                        self.log(f"[DEBUG] item={item}")
-                        self.log(traceback.format_exc())
+                        error_text = str(inner_error)
+
+                        if "não está no WhatsApp" in error_text or "not on WhatsApp" in error_text:
+                            self.db.save_send(nome, documento, telefone, mensagem, "ignorado", "não tem whatsapp")
+                            self.log(f"[IGNORADO] {telefone} - número não tem WhatsApp")
+                        else:
+                            self.db.save_send(nome, documento, telefone, mensagem, "erro", error_text)
+                            self.log(f"[ERRO] {telefone} - {error_text}")
+                            self.log(traceback.format_exc())
 
                     self.progress.set(idx / total)
 
