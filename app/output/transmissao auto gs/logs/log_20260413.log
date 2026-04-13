@@ -1,0 +1,4 @@
+[2026-04-13 15:24:19] nome=gui | documento= | telefone= | status=ignorado | erro=telefone inválido
+[2026-04-13 15:24:29] nome=lucas | documento= | telefone=5511910728906 | status=enviado | erro=
+[2026-04-13 15:25:02] nome=gui | documento= | telefone=5511969214774 | status=erro | erro=Mensagem não foi confirmada como enviada.
+[2026-04-13 15:25:08] nome=joice | documento= | telefone=551984191724 | status=ignorado | erro=não tem whatsapp
