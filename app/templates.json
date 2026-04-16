@@ -1,0 +1,58 @@
+{
+  "version": "2.0",
+  "meta": {
+    "description": "Templates de mensagens para cobrança via WhatsApp",
+    "variables": ["{nome}", "{documento}", "{vencimento}", "{valor}", "{telefone}"],
+    "last_updated": "2026-01-01"
+  },
+  "templates": [
+    {
+      "id": "cobranca_amigavel_1",
+      "name": "Cobrança Amigável - Variação 1",
+      "category": "cobranca",
+      "tone": "informal",
+      "active": true,
+      "weight": 1,
+      "variants": [
+        "Olá {nome}, tudo bem? 😊\n\nPassando pra avisar que o documento {documento} vence em {vencimento}, no valor de {valor}.\n\nQualquer dúvida, pode me chamar aqui. 🙂",
+        "Oi {nome}! Tudo certo?\n\nSó um lembrete: temos o documento {documento} com vencimento em {vencimento} — {valor}.\n\nSe já pagou, pode ignorar. Se precisar de algo, é só falar!"
+      ]
+    },
+    {
+      "id": "cobranca_amigavel_2",
+      "name": "Cobrança Amigável - Variação 2",
+      "category": "cobranca",
+      "tone": "informal",
+      "active": true,
+      "weight": 1,
+      "variants": [
+        "Boa tarde, {nome}! 👋\n\nVim te lembrar sobre o doc. {documento}, vencimento {vencimento}, valor {valor}.\n\nEstamos à disposição caso precise negociar ou tirar alguma dúvida.",
+        "Olá {nome}, como vai?\n\nTemos pendente o documento {documento} — vence em {vencimento}, valor de {valor}.\n\nQualquer coisa é só responder aqui. Abraço! 🤝"
+      ]
+    },
+    {
+      "id": "cobranca_formal_1",
+      "name": "Cobrança Formal",
+      "category": "cobranca",
+      "tone": "formal",
+      "active": true,
+      "weight": 1,
+      "variants": [
+        "Prezado(a) {nome},\n\nInformamos que consta em nosso sistema o documento {documento}, com vencimento em {vencimento}, no valor de {valor}.\n\nCaso o pagamento já tenha sido efetuado, desconsidere esta mensagem.\n\nAtenciosamente.",
+        "Caro(a) {nome},\n\nEntramos em contato para informar sobre o documento {documento}, vencendo em {vencimento}, correspondente ao valor de {valor}.\n\nEstamos à sua disposição para esclarecimentos.\n\nGrato(a)."
+      ]
+    },
+    {
+      "id": "lembrete_vencimento",
+      "name": "Lembrete Pré-Vencimento",
+      "category": "lembrete",
+      "tone": "informal",
+      "active": true,
+      "weight": 1,
+      "variants": [
+        "Oi {nome}! 😊\n\nSó um aviso rápido: o documento {documento} vence em {vencimento} ({valor}). \n\nQuer que eu te passe os dados para pagamento? É só falar!",
+        "Olá {nome}, tudo bem?\n\nLembrete: doc. {documento} vence em {vencimento} — {valor}. Qualquer dúvida pode chamar aqui! 👍"
+      ]
+    }
+  ]
+}

@@ -1,4 +1,6 @@
-pandas
-openpyxl
-customtkinter
-selenium
+pandas>=2.0.0
+openpyxl>=3.1.0
+customtkinter>=5.2.0
+selenium>=4.15.0
+webdriver-manager>=4.0.1
+Pillow>=10.0.0
