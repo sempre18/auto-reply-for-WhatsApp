@@ -1,0 +1,2 @@
+[2026-04-22 15:54:17] session=20260422_155352 | status=erro         | template=fallback             | nome=dani                           | documento=2               | telefone=551910728906    | delay=0.0s | erro=O número +55 19 1072-8906 não está no WhatsApp.
+[2026-04-22 15:55:15] session=20260422_155352 | status=enviado      | template=teste                | nome=lucas                          | documento=1               | telefone=5511910728906   | delay=46.4s | erro=

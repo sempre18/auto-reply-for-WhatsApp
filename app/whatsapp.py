@@ -144,29 +144,21 @@ class WhatsAppSender:
         phone: str,
         message: str,
         typing_delay: float = 0.0,
-        retries: int = 2,
+        retries: int = 0,
     ) -> bool:
         if not self.driver:
             raise WhatsAppError("Navegador não iniciado.")
 
-        last_err = None
-        for attempt in range(1, retries + 2):
-            try:
-                self._send_once(phone=phone, message=message, typing_delay=typing_delay)
-                return True
-            except WhatsAppError as e:
-                last_err = e
-                self._save_screenshot(f"send_fail_{phone}_try_{attempt}")
-                if attempt <= retries:
-                    try:
-                        self.driver.refresh()
-                    except Exception:
-                        pass
-                    time.sleep(2)
-                    continue
-                break
-
-        raise WhatsAppError(str(last_err) if last_err else f"Falha ao enviar para {phone}")
+        try:
+            self._send_once(
+                phone=phone,
+                message=message,
+                typing_delay=typing_delay,
+            )
+            return True
+        except WhatsAppError as e:
+            self._save_screenshot(f"send_fail_{phone}")
+            raise
 
     def _send_once(self, phone: str, message: str, typing_delay: float = 0.0) -> None:
         encoded = urllib.parse.quote(message)

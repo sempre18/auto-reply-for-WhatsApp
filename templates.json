@@ -1,0 +1,65 @@
+{
+  "version": "3.0",
+  "meta": {
+    "description": "Template padrão embutido",
+    "variables": [
+      "{nome}",
+      "{documento}",
+      "{vencimento}",
+      "{valor}",
+      "{telefone}"
+    ]
+  },
+  "templates": [
+    {
+      "id": "fallback",
+      "name": "Padrão",
+      "category": "cobranca",
+      "tone": "informal",
+      "active": true,
+      "weight": 1,
+      "aliases": {
+        "nome": [
+          "nome",
+          "cliente",
+          "historico"
+        ],
+        "documento": [
+          "documento",
+          "doc",
+          "pedido"
+        ],
+        "vencimento": [
+          "vencimento",
+          "data_vencimento"
+        ],
+        "valor": [
+          "valor",
+          "vl.documento",
+          "vl_documento"
+        ],
+        "telefone": [
+          "telefone",
+          "telefone cliente",
+          "celular",
+          "whatsapp"
+        ]
+      },
+      "variants": [
+        "Olá {nome}, tudo bem? 😊\n\nPassando pra avisar que o documento {documento} vence em {vencimento}, no valor de {valor}.\n\nQualquer dúvida, pode me chamar aqui!"
+      ]
+    },
+    {
+      "id": "teste",
+      "name": "teste",
+      "category": "teste",
+      "tone": "informal",
+      "active": true,
+      "weight": 1,
+      "aliases": {},
+      "variants": [
+        "ola {nome} tudo bem \n\n{documento}"
+      ]
+    }
+  ]
+}

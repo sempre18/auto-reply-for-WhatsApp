@@ -19,10 +19,6 @@ def normalize_column_name(col: str) -> str:
     return str(col).strip().lower()
 
 
-def normalize_key_name(name: str) -> str:
-    return re.sub(r"\s+", "_", str(name).strip().lower())
-
-
 def normalize_phone(phone) -> str:
     if pd.isna(phone):
         return ""
@@ -100,62 +96,76 @@ def resolve_aliases(template_manager=None, template_id: Optional[str] = None) ->
 
 def resolve_column_mapping(
     df: pd.DataFrame,
-    required_vars: list[str],
     template_manager=None,
     template_id: Optional[str] = None,
 ) -> dict[str, str]:
+    """
+    Mapeia automaticamente colunas da planilha para nomes mais comuns,
+    mas NÃO exige nenhuma.
+    """
     df_cols = {normalize_column_name(c): c for c in df.columns}
     aliases = resolve_aliases(template_manager, template_id)
     mapping: dict[str, str] = {}
 
-    for var in required_vars:
-        var_norm = normalize_column_name(var)
-
-        if var_norm in df_cols:
-            mapping[var] = df_cols[var_norm]
+    # tenta mapear aliases conhecidos
+    for var_name, alias_list in aliases.items():
+        if normalize_column_name(var_name) in df_cols:
+            mapping[var_name] = df_cols[normalize_column_name(var_name)]
             continue
 
-        for alias in aliases.get(var_norm, []):
+        for alias in alias_list:
             alias_norm = normalize_column_name(alias)
             if alias_norm in df_cols:
-                mapping[var] = df_cols[alias_norm]
+                mapping[var_name] = df_cols[alias_norm]
                 break
+
+    # também copia todas as colunas reais como contexto direto
+    for original_col in df.columns:
+        col_norm = normalize_column_name(original_col)
+        if col_norm not in mapping:
+            mapping[col_norm] = original_col
 
     return mapping
 
 
-def validate_template_columns(
+def clean_dataframe_dynamic(
     df: pd.DataFrame,
-    required_vars: list[str],
     template_manager=None,
     template_id: Optional[str] = None,
-) -> tuple[list[str], dict[str, str]]:
-    mapping = resolve_column_mapping(df, required_vars, template_manager, template_id)
-    missing = [var for var in required_vars if var not in mapping]
-    return missing, mapping
-
-
-def clean_dataframe_dynamic(df: pd.DataFrame, mapping: dict[str, str]) -> pd.DataFrame:
+    phone_column: Optional[str] = None,
+) -> tuple[pd.DataFrame, dict[str, str]]:
+    """
+    Nunca falha por coluna ausente.
+    Cria contexto com tudo que existir.
+    Se phone_column for informado, usa essa coluna como telefone.
+    """
     result = df.copy()
+    mapping = resolve_column_mapping(result, template_manager, template_id)
 
-    for var, original_col in mapping.items():
-        result[var] = result[original_col]
+    # cria colunas internas com base no mapeamento encontrado
+    for internal_name, original_col in mapping.items():
+        try:
+            result[internal_name] = result[original_col]
+        except Exception:
+            result[internal_name] = ""
 
-    for col in mapping.keys():
-        if col not in result.columns:
-            result[col] = ""
-
+    # limpa strings
     for col in result.columns:
         if result[col].dtype == object:
             result[col] = result[col].fillna("").astype(str).str.strip()
 
-    if "telefone" in result.columns:
+    # coluna manual de telefone tem prioridade
+    if phone_column and phone_column in result.columns:
+        result["telefone"] = result[phone_column].apply(normalize_phone)
+        mapping["telefone"] = phone_column
+    elif "telefone" in result.columns:
         result["telefone"] = result["telefone"].apply(normalize_phone)
-        result["telefone_valido"] = result["telefone"].apply(is_valid_phone)
     else:
         result["telefone"] = ""
-        result["telefone_valido"] = False
 
+    result["telefone_valido"] = result["telefone"].apply(is_valid_phone)
+
+    # vencimento opcional
     if "vencimento" in result.columns:
         result["vencimento_dt"] = result["vencimento"].apply(parse_date)
         result["vencimento_fmt"] = result["vencimento"].apply(format_date_br)
@@ -163,6 +173,7 @@ def clean_dataframe_dynamic(df: pd.DataFrame, mapping: dict[str, str]) -> pd.Dat
         result["vencimento_dt"] = pd.NaT
         result["vencimento_fmt"] = ""
 
+    # valor opcional
     if "valor" in result.columns:
         result["valor_num"] = result["valor"].apply(parse_money)
         result["valor_fmt"] = result["valor_num"].apply(format_money_br)
@@ -170,8 +181,7 @@ def clean_dataframe_dynamic(df: pd.DataFrame, mapping: dict[str, str]) -> pd.Dat
         result["valor_num"] = 0.0
         result["valor_fmt"] = ""
 
-    return result
-
+    return result, mapping
 
 def filter_dataframe(
     df: pd.DataFrame,
@@ -202,6 +212,10 @@ def filter_dataframe(
 
 
 def build_context(row: dict) -> dict:
+    """
+    Joga tudo da linha para o contexto.
+    O template usa qualquer chave que existir.
+    """
     ctx = {}
     for key, value in row.items():
         if key.endswith("_dt") or key.endswith("_num"):
@@ -211,6 +225,7 @@ def build_context(row: dict) -> dict:
         else:
             ctx[key] = str(value)
 
+    # prioriza formatos amigáveis se existirem
     if "vencimento_fmt" in row:
         ctx["vencimento"] = row.get("vencimento_fmt", "")
     if "valor_fmt" in row:
@@ -225,22 +240,32 @@ def has_unresolved_placeholders(text: str) -> list[str]:
     return re.findall(r"{\s*([a-zA-Z0-9_]+)\s*}", text or "")
 
 
-def evaluate_row_preparation(row: dict, mensagem: str, required_vars: list[str]) -> tuple[str, list[str], list[str]]:
-    missing_fields = []
-    for var in required_vars:
-        value = row.get(var, "")
-        if value is None or str(value).strip() == "":
-            missing_fields.append(var)
-
+def evaluate_row_preparation(row: dict, mensagem: str) -> tuple[str, list[str]]:
+    """
+    Não existe mais campo obrigatório.
+    Só marca pendente se sobrou placeholder no texto.
+    """
     placeholders_left = has_unresolved_placeholders(mensagem)
 
     if not row.get("telefone_valido", False):
-        return "telefone_invalido", missing_fields, placeholders_left
-    if missing_fields:
-        return "campo_vazio", missing_fields, placeholders_left
+        return "telefone_invalido", placeholders_left
+
     if placeholders_left:
-        return "placeholder_pendente", missing_fields, placeholders_left
-    return "pronto", missing_fields, placeholders_left
+        return "placeholder_pendente", placeholders_left
+
+    return "pronto", placeholders_left
+
+
+def safe_replace_template(text: str, context: dict) -> str:
+    """
+    Substitui qualquer {campo} por valor se existir,
+    ou string vazia se não existir.
+    """
+    def repl(match):
+        key = match.group(1).strip()
+        return str(context.get(key, ""))
+
+    return re.sub(r"{\s*([a-zA-Z0-9_]+)\s*}", repl, text or "")
 
 
 def generate_messages(
@@ -251,7 +276,6 @@ def generate_messages(
 ) -> list[dict]:
     messages = []
     rows = df.to_dict("records")
-    required_vars = extract_template_variables(template_manager, template_id)
 
     if len(rows) > 3:
         _soft_shuffle(rows, strength=0.25)
@@ -261,20 +285,29 @@ def generate_messages(
 
         if template_manager is not None:
             if template_id:
-                msg, tid = template_manager.render(template_id, ctx)
+                tpl = template_manager.get_template_by_id(template_id)
+                if tpl:
+                    raw = template_manager.pick_variant(tpl)
+                    msg = safe_replace_template(raw, ctx)
+                    tid = tpl["id"]
+                else:
+                    msg = safe_replace_template(fallback_template, ctx)
+                    tid = "manual"
             else:
-                msg, tid = template_manager.render_random(ctx)
+                actives = template_manager.get_active_templates()
+                if actives:
+                    tpl = random.choice(actives)
+                    raw = template_manager.pick_variant(tpl)
+                    msg = safe_replace_template(raw, ctx)
+                    tid = tpl["id"]
+                else:
+                    msg = safe_replace_template(fallback_template, ctx)
+                    tid = "manual"
         else:
-            msg = fallback_template
-            for key, value in ctx.items():
-                msg = msg.replace("{" + key + "}", str(value))
+            msg = safe_replace_template(fallback_template, ctx)
             tid = "manual"
 
-        prep_status, missing_fields, placeholders_left = evaluate_row_preparation(
-            row=row,
-            mensagem=msg,
-            required_vars=[v for v in required_vars if v != "telefone"],
-        )
+        prep_status, placeholders_left = evaluate_row_preparation(row, msg)
 
         messages.append(
             {
@@ -288,7 +321,6 @@ def generate_messages(
                 "template_id": tid,
                 "contexto": ctx,
                 "preparation_status": prep_status,
-                "missing_fields": missing_fields,
                 "placeholders_left": placeholders_left,
                 "row_json": json.dumps(ctx, ensure_ascii=False),
             }

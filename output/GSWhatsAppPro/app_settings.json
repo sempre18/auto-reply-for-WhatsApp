@@ -1,0 +1,13 @@
+{
+  "excel_path": "D:/Github/auto-reply for WhatsApp/logs/Novo(a) Planilha do Microsoft Excel.xlsx",
+  "filter_mode": "todos",
+  "days": "3",
+  "only_valid_phone": true,
+  "skip_invalid": true,
+  "auto_driver": true,
+  "driver_path": "",
+  "profile": "Rápido",
+  "template_name": "Aleatório",
+  "simulation_mode": false,
+  "phone_column": "numero"
+}

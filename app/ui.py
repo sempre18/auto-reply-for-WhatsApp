@@ -14,10 +14,8 @@ from humanizer import HumanBehaviorEngine, PROFILES
 from template_manager import TemplateManager
 from utils import (
     clean_dataframe_dynamic,
-    extract_template_variables,
     filter_dataframe,
     generate_messages,
-    validate_template_columns,
 )
 from whatsapp import WhatsAppError, WhatsAppSender
 
@@ -83,6 +81,7 @@ class App(ctk.CTk):
         self._update_metrics_display()
 
     def _build_variables(self):
+        self.phone_column_var = tk.StringVar(value="Auto detectar")
         self.excel_path_var = tk.StringVar()
         self.filter_mode_var = tk.StringVar(value="todos")
         self.days_var = tk.StringVar(value="3")
@@ -159,11 +158,56 @@ class App(ctk.CTk):
     def _frame(self, parent, **kw):
         return ctk.CTkFrame(parent, fg_color=C["panel"], corner_radius=10, **kw)
 
+    def _reprocess_current_dataframe(self):
+        if self.df_original.empty:
+            return
+
+        try:
+            # df_original já está tratado; então reabre da planilha original se houver caminho
+            path = self.excel_path_var.get().strip()
+            if not path or not os.path.exists(path):
+                return
+
+            df_raw = pd.read_excel(path)
+
+            template_id = self._selected_template_id()
+            selected_phone_col = self.phone_column_var.get().strip()
+            if selected_phone_col == "Auto detectar":
+                selected_phone_col = None
+
+            df, mapping = clean_dataframe_dynamic(
+                df_raw,
+                template_manager=self.template_manager,
+                template_id=template_id,
+                phone_column=selected_phone_col,
+            )
+
+            self.df_original = df
+            self.df_filtered = df.copy()
+            self.current_mapping = mapping
+
+            self._refresh_table_preview_df(self.df_filtered)
+            self._update_mapping_display([], mapping, [])
+
+            self.status_var.set("Planilha reprocessada com a coluna de telefone selecionada.")
+            self.log(f"[OK] Coluna de telefone: {self.phone_column_var.get()}")
+            self._save_settings()
+        except Exception as e:
+            self.log(f"[ERRO] Reprocessar planilha: {e}")
+    
     def _section_label(self, parent, text):
         box = ctk.CTkFrame(parent, fg_color=C["orange"], corner_radius=6, height=28)
         box.pack(fill="x", pady=(10, 4))
         box.pack_propagate(False)
         self._label(box, text, size=11, bold=True, color=C["white"]).pack(side="left", padx=8)
+
+    def _update_phone_column_options(self, df: pd.DataFrame):
+        options = ["Auto detectar"] + [str(c) for c in df.columns]
+        self.phone_column_menu.configure(values=options)
+
+        current = self.phone_column_var.get()
+        if current not in options:
+            self.phone_column_var.set("Auto detectar")
 
     def _build_ui(self):
         self.grid_columnconfigure(0, weight=0)
@@ -198,6 +242,21 @@ class App(ctk.CTk):
         self._section_label(left, "📂 Planilha Excel")
         self._entry(left, self.excel_path_var).pack(fill="x", padx=8, pady=(2, 4))
         self._btn(left, "Importar planilha (.xlsx)", self.import_excel).pack(fill="x", padx=8, pady=2)
+
+        self._label(left, "Coluna dos números").pack(anchor="w", padx=8)
+        self.phone_column_menu = ctk.CTkOptionMenu(
+            left,
+            variable=self.phone_column_var,
+            values=["Auto detectar"],
+            fg_color=C["orange"],
+            button_color=C["orange"],
+            button_hover_color=C["orange_hover"],
+            text_color=C["white"],
+            dropdown_fg_color=C["graphite"],
+            dropdown_text_color=C["white"],
+            command=lambda _v: self._reprocess_current_dataframe(),
+        )
+        self.phone_column_menu.pack(fill="x", padx=8, pady=(2, 6))
 
         self._section_label(left, "🌐 ChromeDriver")
         ctk.CTkCheckBox(
@@ -467,54 +526,49 @@ class App(ctk.CTk):
 
     def _on_template_change(self, _selected_name=None):
         self._save_settings()
+
         if self.df_original.empty:
             return
 
-        template_id = self._selected_template_id()
-        required_vars = extract_template_variables(self.template_manager, template_id)
-        if "telefone" not in required_vars:
-            required_vars.append("telefone")
+        try:
+            template_id = self._selected_template_id()
 
-        missing, mapping = validate_template_columns(
-            self.df_original,
-            required_vars,
-            template_manager=self.template_manager,
-            template_id=template_id,
-        )
+            # apenas remapeia, sem exigir nada
+            _, mapping = clean_dataframe_dynamic(
+                self.df_original.copy(),
+                template_manager=self.template_manager,
+                template_id=template_id,
+            )
 
-        self.current_required_vars = required_vars
-        self.current_mapping = mapping
-        self._update_mapping_display(required_vars, mapping, missing)
+            self.current_required_vars = []
+            self.current_mapping = mapping
+            self._update_mapping_display([], mapping, [])
 
-        if missing:
-            self.status_var.set("Template trocado, mas a planilha atual não atende todas as variáveis.")
-            self.log(f"[ALERTA] Template exige colunas ausentes: {', '.join(missing)}")
-        else:
-            self.status_var.set("Template validado com a planilha atual.")
-            self.log("[OK] Template validado com a planilha atual.")
+            self.status_var.set("Template atualizado sem exigir colunas obrigatórias.")
+            self.log("[OK] Template trocado. Nenhuma coluna obrigatória foi exigida.")
+
+        except Exception as e:
+            self.log(f"[ERRO] Falha ao trocar template: {e}")
 
     def _update_mapping_display(self, required_vars=None, mapping=None, missing=None):
-        required_vars = required_vars or []
         mapping = mapping or {}
-        missing = missing or []
 
         lines = [
-            f"Variáveis exigidas: {', '.join(required_vars) if required_vars else '-'}",
+            "Colunas obrigatórias: nenhuma",
             "",
-            "Mapeamento encontrado:",
+            "Mapeamento automático encontrado:",
         ]
+
         for k, v in mapping.items():
             lines.append(f"  {k:<18} -> {v}")
+
         if not mapping:
             lines.append("  (nenhum)")
 
         lines.append("")
-        lines.append("Faltando:")
-        if missing:
-            for item in missing:
-                lines.append(f"  - {item}")
-        else:
-            lines.append("  (nada)")
+        lines.append("Observação:")
+        lines.append("  O template usa o que existir na linha.")
+        lines.append("  O que não existir vira texto vazio.")
 
         self.mapping_box.configure(state="normal")
         self.mapping_box.delete("1.0", "end")
@@ -563,6 +617,7 @@ class App(ctk.CTk):
             "profile": self.profile_var.get(),
             "template_name": self.selected_template_var.get(),
             "simulation_mode": self.simulation_mode_var.get(),
+            "phone_column": self.phone_column_var.get(),
         }
         try:
             with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
@@ -587,6 +642,7 @@ class App(ctk.CTk):
             self.profile_var.set(data.get("profile", self.profile_var.get()))
             self.selected_template_var.set(data.get("template_name", "Aleatório"))
             self.simulation_mode_var.set(bool(data.get("simulation_mode", True)))
+            self.phone_column_var.set(data.get("phone_column", "Auto detectar"))
             self._toggle_driver_entry()
         except Exception:
             pass
@@ -601,40 +657,37 @@ class App(ctk.CTk):
 
         try:
             df_raw = pd.read_excel(path)
+
+            # atualiza as opções do seletor com as colunas reais da planilha
+            self._update_phone_column_options(df_raw)
+
             template_id = self._selected_template_id()
-            required_vars = extract_template_variables(self.template_manager, template_id)
 
-            if "telefone" not in required_vars:
-                required_vars.append("telefone")
+            selected_phone_col = self.phone_column_var.get().strip()
+            if selected_phone_col == "Auto detectar":
+                selected_phone_col = None
 
-            missing, mapping = validate_template_columns(
+            df, mapping = clean_dataframe_dynamic(
                 df_raw,
-                required_vars,
                 template_manager=self.template_manager,
                 template_id=template_id,
+                phone_column=selected_phone_col,
             )
-
-            self.current_required_vars = required_vars
-            self.current_mapping = mapping
-            self._update_mapping_display(required_vars, mapping, missing)
-
-            if missing:
-                messagebox.showerror(
-                    "Colunas faltando",
-                    "A planilha não contém as colunas exigidas pelo template:\n\n" + "\n".join(missing),
-                )
-                return
-
-            df = clean_dataframe_dynamic(df_raw, mapping)
 
             self.df_original = df
             self.df_filtered = df.copy()
+            self.current_mapping = mapping
+            self.current_required_vars = []
+
             self.excel_path_var.set(path)
             self._refresh_table_preview_df(self.df_filtered)
+            self._update_mapping_display([], mapping, [])
+
             self.status_var.set(f"Planilha carregada: {len(df)} registros.")
             self.log(f"[OK] Planilha importada: {path}")
-            self.log(f"[INFO] Variáveis exigidas: {', '.join(required_vars)}")
+            self.log(f"[INFO] Coluna de telefone selecionada: {self.phone_column_var.get()}")
             self._save_settings()
+
         except Exception as e:
             messagebox.showerror("Erro", f"Falha ao importar:\n{e}")
             self.log(f"[ERRO] Importação: {e}\n{traceback.format_exc()}")
@@ -723,15 +776,20 @@ class App(ctk.CTk):
     def _render_preview_list(self):
         self.preview_box.delete("1.0", "end")
         lines = []
+
         for i, item in enumerate(self.generated_messages[:8], 1):
+            placeholders = item.get("placeholders_left", [])
+            missing_fields = item.get("missing_fields", [])
+
             lines.append(
                 f"{'─'*70}\n"
-                f"#{i} | {item['telefone']} | {item['nome']}\n"
-                f"template: {item['template_id']} | preparo: {item['preparation_status']}\n"
-                f"faltando: {', '.join(item['missing_fields']) if item['missing_fields'] else '-'}\n"
-                f"placeholders: {', '.join(item['placeholders_left']) if item['placeholders_left'] else '-'}\n\n"
-                f"{item['mensagem']}\n"
+                f"#{i} | {item.get('telefone', '')} | {item.get('nome', '')}\n"
+                f"template: {item.get('template_id', '')} | preparo: {item.get('preparation_status', '')}\n"
+                f"faltando: {', '.join(missing_fields) if missing_fields else '-'}\n"
+                f"placeholders: {', '.join(placeholders) if placeholders else '-'}\n\n"
+                f"{item.get('mensagem', '')}\n"
             )
+
         self.preview_box.insert("1.0", "\n".join(lines) if lines else "Nenhuma mensagem.")
 
     def _on_tree_select(self, _event=None):

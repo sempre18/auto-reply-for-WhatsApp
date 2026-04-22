@@ -22,51 +22,112 @@ class HistoryDB:
         conn.row_factory = sqlite3.Row
         return conn
 
+    def _table_exists(self, conn: sqlite3.Connection, table_name: str) -> bool:
+        row = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+            (table_name,)
+        ).fetchone()
+        return row is not None
+
+    def _get_columns(self, conn: sqlite3.Connection, table_name: str) -> set[str]:
+        if not self._table_exists(conn, table_name):
+            return set()
+        rows = conn.execute(f"PRAGMA table_info({table_name})").fetchall()
+        return {row["name"] for row in rows}
+
+    def _add_column_if_missing(
+        self,
+        conn: sqlite3.Connection,
+        table_name: str,
+        column_name: str,
+        column_def: str,
+    ) -> None:
+        cols = self._get_columns(conn, table_name)
+        if column_name not in cols:
+            conn.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_def}")
+
     def _init_db(self) -> None:
         with self._connect() as conn:
-            conn.executescript(
+            # cria a tabela sends se não existir
+            conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS sends (
-                    id                INTEGER PRIMARY KEY AUTOINCREMENT,
-                    session_id        TEXT,
-                    created_at        TEXT NOT NULL,
-                    nome              TEXT,
-                    documento         TEXT,
-                    telefone          TEXT,
-                    mensagem          TEXT,
-                    template_id       TEXT,
-                    status            TEXT NOT NULL,
-                    error             TEXT,
-                    delay_used        REAL DEFAULT 0.0,
-                    typing_delay      REAL DEFAULT 0.0,
+                    id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+                    session_id         TEXT,
+                    created_at         TEXT NOT NULL,
+                    nome               TEXT,
+                    documento          TEXT,
+                    telefone           TEXT,
+                    mensagem           TEXT,
+                    template_id        TEXT,
+                    status             TEXT NOT NULL,
+                    error              TEXT,
+                    delay_used         REAL DEFAULT 0.0,
+                    typing_delay       REAL DEFAULT 0.0,
                     preparation_status TEXT,
-                    placeholders_left TEXT,
-                    context_json      TEXT,
-                    simulation        INTEGER DEFAULT 0
-                );
-
-                CREATE INDEX IF NOT EXISTS idx_sends_created_at
-                    ON sends(created_at);
-
-                CREATE INDEX IF NOT EXISTS idx_sends_telefone
-                    ON sends(telefone);
-
-                CREATE INDEX IF NOT EXISTS idx_sends_session_id
-                    ON sends(session_id);
-
-                CREATE TABLE IF NOT EXISTS session_stats (
-                    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                    session_id      TEXT UNIQUE,
-                    session_start   TEXT NOT NULL,
-                    session_end     TEXT,
-                    total_sent      INTEGER DEFAULT 0,
-                    total_errors    INTEGER DEFAULT 0,
-                    total_skipped   INTEGER DEFAULT 0,
-                    total_simulated INTEGER DEFAULT 0,
-                    avg_delay       REAL DEFAULT 0.0
-                );
+                    placeholders_left  TEXT,
+                    context_json       TEXT,
+                    simulation         INTEGER DEFAULT 0
+                )
                 """
             )
+
+            # cria a tabela session_stats se não existir
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS session_stats (
+                    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+                    session_id       TEXT UNIQUE,
+                    session_start    TEXT NOT NULL,
+                    session_end      TEXT,
+                    total_sent       INTEGER DEFAULT 0,
+                    total_errors     INTEGER DEFAULT 0,
+                    total_skipped    INTEGER DEFAULT 0,
+                    total_simulated  INTEGER DEFAULT 0,
+                    avg_delay        REAL DEFAULT 0.0
+                )
+                """
+            )
+
+            # migração da tabela sends
+            self._add_column_if_missing(conn, "sends", "session_id", "TEXT")
+            self._add_column_if_missing(conn, "sends", "created_at", "TEXT")
+            self._add_column_if_missing(conn, "sends", "nome", "TEXT")
+            self._add_column_if_missing(conn, "sends", "documento", "TEXT")
+            self._add_column_if_missing(conn, "sends", "telefone", "TEXT")
+            self._add_column_if_missing(conn, "sends", "mensagem", "TEXT")
+            self._add_column_if_missing(conn, "sends", "template_id", "TEXT")
+            self._add_column_if_missing(conn, "sends", "status", "TEXT")
+            self._add_column_if_missing(conn, "sends", "error", "TEXT")
+            self._add_column_if_missing(conn, "sends", "delay_used", "REAL DEFAULT 0.0")
+            self._add_column_if_missing(conn, "sends", "typing_delay", "REAL DEFAULT 0.0")
+            self._add_column_if_missing(conn, "sends", "preparation_status", "TEXT")
+            self._add_column_if_missing(conn, "sends", "placeholders_left", "TEXT")
+            self._add_column_if_missing(conn, "sends", "context_json", "TEXT")
+            self._add_column_if_missing(conn, "sends", "simulation", "INTEGER DEFAULT 0")
+
+            # migração da tabela session_stats
+            self._add_column_if_missing(conn, "session_stats", "session_id", "TEXT")
+            self._add_column_if_missing(conn, "session_stats", "session_start", "TEXT")
+            self._add_column_if_missing(conn, "session_stats", "session_end", "TEXT")
+            self._add_column_if_missing(conn, "session_stats", "total_sent", "INTEGER DEFAULT 0")
+            self._add_column_if_missing(conn, "session_stats", "total_errors", "INTEGER DEFAULT 0")
+            self._add_column_if_missing(conn, "session_stats", "total_skipped", "INTEGER DEFAULT 0")
+            self._add_column_if_missing(conn, "session_stats", "total_simulated", "INTEGER DEFAULT 0")
+            self._add_column_if_missing(conn, "session_stats", "avg_delay", "REAL DEFAULT 0.0")
+
+            # índices
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_sends_created_at ON sends(created_at)"
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_sends_telefone ON sends(telefone)"
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_sends_session_id ON sends(session_id)"
+            )
+
+            conn.commit()
 
     def save_send(
         self,
@@ -114,6 +175,7 @@ class HistoryDB:
                     int(simulation),
                 ),
             )
+
         self._append_log_file(
             timestamp=now,
             nome=nome,
