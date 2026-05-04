@@ -1,0 +1,13 @@
+{
+  "excel_path": "",
+  "filter_mode": "todos",
+  "days": "3",
+  "only_valid_phone": true,
+  "skip_invalid": true,
+  "auto_driver": true,
+  "driver_path": "",
+  "profile": "Cauteloso (recomendado)",
+  "template_name": "Aleatório",
+  "simulation_mode": true,
+  "phone_column": "Auto detectar"
+}

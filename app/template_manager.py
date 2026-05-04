@@ -14,10 +14,10 @@ _BUILTIN_FALLBACK = {
     },
     "templates": [
         {
-            "id": "fallback",
-            "name": "Padrão",
+            "id": "aviso 1",
+            "name": "aviso 1",
             "category": "cobranca",
-            "tone": "informal",
+            "tone": "formal",
             "active": True,
             "weight": 1,
             "aliases": {
@@ -28,11 +28,125 @@ _BUILTIN_FALLBACK = {
                 "telefone": ["telefone", "telefone cliente", "celular", "whatsapp"],
             },
             "variants": [
-                (
-                    "Olá {nome}, tudo bem? 😊\n\n"
-                    "Passando pra avisar que o documento {documento} vence em "
-                    "{vencimento}, no valor de {valor}.\n\n"
-                    "Qualquer dúvida, pode me chamar aqui!"
+                ( 
+                    "📢 1º AVISO – TÍTULO VENCIDO 📢\n\n"
+                    "Olá, {nome}!! Tudo bem?\n"
+                    "Verificamos em nosso sistema que há um título vencido em seu nome. Seguem os dados para sua conferência:\n"
+                    "📄 Nota Fiscal nº: {documento}\n"
+                    "💰 Valor: R$ {valor}\n"
+                    "🗓️ Vencimento: {vencimento}\n\n"
+                    "Solicitamos, por gentileza, que nos retorne dentro do prazo de 2 dias úteis a contar do recebimento deste comunicado, informando uma das opções abaixo:\n"
+                    "✔️ Confirmação do pagamento com o envio do comprovante;\n"
+                    "✔️ Solicitação da 2ª via da nota ou boleto;\n"
+                    "✔️ Justificativa ou informação sobre o motivo da pendência.\n\n"
+                    "Entendemos que situações assim podem ocorrer por equívoco ou por ter passado despercebido, e estamos à disposição para auxiliar da melhor forma possível.\n"
+                    "Aguardamos seu retorno.\n"
+                    "Atenciosamente,\n"
+                    "Grupo Gs Trator 🚜\n"
+                    "Equipe - Contas a Receber\n"
+                )
+            ],
+        },
+            {
+            "id": "aviso 2",
+            "name": "aviso 2",
+            "category": "cobranca",
+            "tone": "formal",
+            "active": True,
+            "weight": 1,
+            "aliases": {
+                "nome": ["nome", "cliente", "historico"],
+                "documento": ["documento", "doc", "pedido"],
+                "vencimento": ["vencimento", "data_vencimento"],
+                "valor": ["valor", "vl.documento", "vl_documento"],
+                "telefone": ["telefone", "telefone cliente", "celular", "whatsapp"],
+            },
+            "variants": [
+                ( 
+                    "📢 2º AVISO – TÍTULO VENCIDO 📢\n\n"
+                    "Olá, {nome}!! Tudo bem?\n"
+                    "Verificamos em nosso sistema que há um título vencido em seu nome. Seguem os dados para sua conferência:\n"
+                    "📄 Nota Fiscal nº: {documento}\n"
+                    "💰 Valor: R$ {valor}\n"
+                    "🗓️ Vencimento: {vencimento}\n\n"
+                    "Solicitamos, por gentileza, que nos retorne dentro do prazo de 2 dias úteis a contar do recebimento deste comunicado, informando uma das opções abaixo:\n"
+                    "✔️ Confirmação do pagamento com o envio do comprovante;\n"
+                    "✔️ Solicitação da 2ª via da nota ou boleto;\n"
+                    "✔️ Justificativa ou informação sobre o motivo da pendência.\n\n"
+                    "Entendemos que situações assim podem ocorrer por equívoco ou por ter passado despercebido, e estamos à disposição para auxiliar da melhor forma possível.\n"
+                    "Aguardamos seu retorno.\n"
+                    "Atenciosamente,\n"
+                    "Grupo Gs Trator 🚜\n"
+                    "Equipe - Contas a Receber\n"
+                )
+            ],
+        },
+            {
+            "id": "aviso 3",
+            "name": "aviso 3",
+            "category": "cobranca",
+            "tone": "formal",
+            "active": True,
+            "weight": 1,
+            "aliases": {
+                "nome": ["nome", "cliente", "historico"],
+                "documento": ["documento", "doc", "pedido"],
+                "vencimento": ["vencimento", "data_vencimento"],
+                "valor": ["valor", "vl.documento", "vl_documento"],
+                "telefone": ["telefone", "telefone cliente", "celular", "whatsapp"],
+            },
+            "variants": [
+                ( 
+                    "📢 3º AVISO – TÍTULO VENCIDO 📢\n\n"
+                    "Olá, {nome}!! Tudo bem?\n"
+                    "Verificamos em nosso sistema que há um título vencido em seu nome. Seguem os dados para sua conferência:\n"
+                    "📄 Nota Fiscal nº: {documento}\n"
+                    "💰 Valor: R$ {valor}\n"
+                    "🗓️ Vencimento: {vencimento}\n"
+                    "Solicitamos, por gentileza, que nos retorne dentro do prazo de 2 dias úteis a contar do recebimento deste comunicado, informando uma das opções abaixo:\n\n"
+                    "✔️ Confirmação do pagamento com o envio do comprovante;\n"
+                    "✔️ Solicitação da 2ª via da nota ou boleto;\n"
+                    "✔️ Justificativa ou informação sobre o motivo da pendência.\n\n"
+                    "Entendemos que situações assim podem ocorrer por equívoco ou por ter passado despercebido, e estamos à disposição para auxiliar da melhor forma possível.\n\n"
+                    "Aguardamos seu retorno.\n"
+                    "Atenciosamente,\n"
+                    "Grupo Gs Trator 🚜\n"
+                    "Equipe - Contas a Receber\n"
+                )
+            ],
+        },
+            {
+            "id": "ultimo aviso",
+            "name": "ultimo aviso",
+            "category": "cobranca",
+            "tone": "formal",
+            "active": False,
+            "weight": 1,
+            "aliases": {
+                "nome": ["nome", "cliente", "historico"],
+                "documento": ["documento", "doc", "pedido"],
+                "vencimento": ["vencimento", "data_vencimento"],
+                "valor": ["valor", "vl.documento", "vl_documento"],
+                "telefone": ["telefone", "telefone cliente", "celular", "whatsapp"],
+            },
+            "variants": [
+                ( 
+                    "📢 ÚLTIMO AVISO – URGENTE: PENDÊNCIA DE PAGAMENTO E ENCAMINHAMENTO PARA O SERASA 📢\n\n"
+                    "Olá, {nome}!! Tudo bem?\n"
+                    "Estamos entrando em contato pela última vez para alertá-los sobre a pendência no pagamento da seguinte nota fiscal:\n"
+                    "📄 Nota Fiscal nº: {documento}\n"
+                    "💰 Valor: R$ {valor}\n"
+                    "🗓️ Vencimento: {vencimento}\n"
+                    "Até o momento, não identificamos o pagamento nem recebemos retorno referente aos avisos anteriores.\n"
+                    "Este comunicado representa a última tentativa de contato.  Caso não haja manifestação ou regularização da pendência, informamos que a nota fiscal será encaminhada automaticamente para negativação no dia 07/03, para as devidas providências legais, o que poderá gerar custos adicionais e impactos no crédito da empresa.\n"
+                    "Para evitar esse encaminhamento, solicitamos que nos retornem antes da data informada, com uma das opções abaixo:\n"
+                    "✔️ Envio do comprovante de pagamento (caso já tenha sido efetuado)\n"
+                    "✔️ Solicitação da segunda via do boleto ou da nota fiscal\n"
+                    "✔️ Justificativa ou esclarecimentos sobre a pendência\n"
+                    "Contamos com sua compreensão e reforçamos a necessidade de regularização imediata para evitar maiores transtornos.\n\n"
+                    "Atenciosamente,\n"
+                    "Grupo Gs Trator 🚜\n"
+                    "Equipe - Contas a Receber\n"
                 )
             ],
         }
